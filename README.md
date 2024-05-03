@@ -1,27 +1,23 @@
+# Weather-Routing
+I developed this isochronal weather routing python3 code as an undergrad with support from the University of Hawaii at Manoa undergraduate research opportunities program (UROP).
 
-
-Markdown
-##  [Main heading]
-
-A [Main short description].
-
-### Installing and Getting Started
-
-This section explains how to install and get started with [Main heading].
-
+### Use
 **Installation:**
+The code is dependent on the following packages:
 
-* **General instructions:** Briefly describe the general installation process, mentioning any prerequisites or dependencies (e.g., Python 3.8+).
+* **numpy (pip install numpy)**
+* **matplotlib (pip install matplotlib)**
+* **pygrib (pip install pygrib)**
+* **mpl_toolkits.basemap (pip install basemap)**
+* **urllib3 (pip install urllib3)**
 
-**Specific OS instructions (Optional):**  
+With these, python 3.8+ should be able to run the code.
 
-  * **Windows:** Download the pre-built installer from the official website and follow the on-screen instructions.
-  * **macOS:** Use Homebrew to install: `brew install [main_heading_package_name]`.
-  * **Linux:** Refer to the documentation for your specific distribution on how to install from package repositories.
+**Run:**
 
-**Configuration:**
+All optimization parameters are listed just below the package imports near the top of main.py. 
+The relevant parameters for simple use are:
 
-Explain how to configure [Main heading] for your specific needs. This might involve setting up environment variables, configuration files, or other customization options (e.g., creating a configuration file named `config.ini`).
 
 ### Theory
 
