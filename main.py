@@ -4,8 +4,7 @@
 
 
 
-########## not-good assumptions this currently runs on, TODO list:
-#deal with curvature somehow
+
 
 
 from global_land_mask import globe
