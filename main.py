@@ -1,14 +1,3 @@
-#####################
-#this is the dev program
-
-
-
-
-
-
-
-from global_land_mask import globe
-import geopy.distance
 import pygrib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -18,36 +7,65 @@ import numpy as np
 import math
 import time
 from time import gmtime, strftime
-import requests
 import urllib.request 
 import os.path
 
 
-
-#Now functions are defined and data are loaded
-arrived=False
-radialsend=30
-first_iteration_scaling=5
-boundarypoints=30
-dt=2 #hours
-plottingidx=1
-#resolution of coastline plot AND polygon check for is_land(), use c=crude for ocean crossing
-resolu='i' #c, l, i, h, f
-#FOR quiver wind plot
-descaling=3
+#The program will download data to this directory:
+download_directory="/Users/nilsmelbourne/Documents/isochronal/gribs/"
 
 
-#start/stop and all positions are of the form lat,lon aka y,x !!!backwards from usual!!!
-#PLACES#######################
-
+#start/stop and all positions are of the form [lat,lon] aka y,x !!!backwards from usual math standard!!!
+########################PLACES#######################
 #seattle = [48.5,-124.8] [48.25,-123.0]
-#CI = [34,-120.5]
+#Channel Islands = [34,-120.5]
 #tipBaja = [22.8,-110.38]
 #HNL = [22,-158] [21.4,-157.5]
 #japan pacific= [30,162]
-#don't make the latitudes or longitudes identical; makes divide by zero errors...
-start = [25.5,-112.5]
-stop = [18.5,-104.5]
+#don't make the latitudes or longitudes identical (can be different by .001 or whatever)
+#... makes divide by zero errors... 
+
+# to make your own start stop, I'd go on google earth or something and just write down the coords
+start = [48.5,-124.8]
+stop = [21.4,-157.5]
+
+
+saveplot=True
+
+#how many test ships to send out from each point on the isochrone. Less than 30 is bad for calculating
+#... ideal travel time and making smooth isochrones. No need to go over 50. 
+radialsend=30
+
+#makes the first isochrone have more points, not a big deal unless starting in a very narrow harbor
+first_iteration_scaling=5
+
+#a qualitative scaling of how many points comprise the isochrones. 20 is plenty for actual path 
+#...calculations but 30ish is better for making nice plotted continuous isochrones
+boundarypoints=30
+
+#isochrone temporal resolution, use larger for longer trips like open ocean.
+#in the case of sailing near small islands or isthmuses, large dt can cause the path to jump
+#...over land, which is obviously bad. 6 is good for open ocean, 1,2,3 for smaller trips near shore. 
+#cannot be less than 1
+dt=6 #hours
+
+#resolution of polygon check for is_land(), use c=crude for ocean crossing
+#this really impacts program speed
+#coarse, low, intermediate, high, full
+resolu='c' #c, l, i, h, f
+
+#resolution for plotting land, use h or f if any nice plots are wanted
+plotresolu = 'h' #c, l, i, h, f
+
+#how often to plot isochrones; 1=every time, 2=every other, 3=every third...
+plottingidx=1
+
+#FOR quiver wind plot
+descaling=3
+
+#do you want the path plotted
+plotpath=True
+
 
 #making the plotting box based on start/stop
 #dont mess with it, it works. i guess you can mess with it, but dont
@@ -76,9 +94,22 @@ if abs(lonbounds[1]-lonbounds[0])/abs(latbounds[1]-latbounds[0])>2:
     latbounds=[newstartlat,newstoplat]
 latbounds.sort()
 lonbounds.sort()
-#yeah just don't mess with that unless making manual boundaries, in form of low to high
+
+
+#yeah just don't mess with that.
+#If you don't like those bounds, you can manually enter your own here in form of low to high coords
+
 # lonbounds=[-7.5,-1.5]
 # latbounds=[46,51.5]
+
+
+
+#from here down I wouldn't change stuff unless you're paying attention 
+##########################################################################
+
+
+
+
 
 
 
@@ -169,6 +200,8 @@ def boatspeed(heading,lon,lat,datau,datav,lats,lons,windspeeds,windangles,polar)
         velocity = abs((abs(apparentdegrees)-adjustdictangle)/(adjustdictangle-dictangle))*basevelocity + abs((abs(apparentdegrees)-dictangle)/(adjustdictangle-dictangle))*adjustvelocity
     return velocity
 
+
+
 #finds the value in the lat/lon array
 def find_nearest(array,value):
     idx = np.searchsorted(array, value, side="left")
@@ -177,12 +210,13 @@ def find_nearest(array,value):
     else:
         return idx
 
+
+
 # Function to convert the date format 
 #for downloading data as we go
 def convert24(str1): 
      
-    # Checking if last two elements of time 
-    # is AM and first two elements are 12 
+    # Checking if last two elements of time is AM and first two elements are 12 
     if str1[-2:] == "AM" and str1[:2] == "12": 
         return "00" + str1[2:-2] 
          
@@ -190,8 +224,7 @@ def convert24(str1):
     elif str1[-2:] == "AM": 
         return str1[:-2] 
      
-    # Checking if last two elements of time 
-    # is PM and first two elements are 12 
+    # Checking if last two elements of time is PM and first two elements are 12 
     elif str1[-2:] == "PM" and str1[:2] == "12": 
         return str1[:-2] 
          
@@ -200,15 +233,10 @@ def convert24(str1):
         # add 12 to hours and remove PM 
         return str(int(str1[:2]) + 12) + str1[2:8] 
 
+
+
+#writes a list of coordinates to a GPX file.
 def write_gpx(coordinates, filename="data.gpx"):
-  """
-  Writes a list of coordinates to a GPX file.
-
-  Args:
-      coordinates: A list of lists, where each inner list contains [latitude, longitude] coordinates.
-      filename (optional): The name of the output GPX file. Defaults to "data.gpx".
-  """
-
   with open(filename, 'w') as f:
     f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
     f.write('<gpx version="1.1" creator="Python Script">\n')
@@ -401,12 +429,12 @@ amelpolar = {
 
 backone=False
 year = time.strftime("%Y", time.gmtime())
-month = '05'
+month = str(time.strftime("%m", time.gmtime()))
 d= time.strftime("%d", time.gmtime())
 hour=convert24(time.strftime("%I:%M:%S %p", time.gmtime()))
 (h, minute, s) = hour.split(':')
 decimaltime = int(h) + int(minute)/60 + int(s)/3600
-
+namingdecimaltime = str(round(int(h) + int(minute)/60 + int(s)/3600,3))
 #d='01'
 #decimaltime=23.5
 if decimaltime>18:
@@ -424,12 +452,12 @@ if len(downloadfile)==1:
 if len(downloadfile)==2:
     downloadfile="0"+downloadfile
 
-if os.path.isfile("/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile) == True: print("gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile+" file was already local")
+if os.path.isfile(download_directory+"gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile) == True: print("gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile+" file was already local")
 
 else:
     try:
         testfile = urllib.request.urlretrieve("https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs."+year+month+d+"%2F"+cycle+"%2Fatmos&file=gfs.t"+cycle+"z.pgrb2.0p25.f384&var_UGRD=on&var_VGRD=on&lev_20_m_above_ground=on", \
-            "/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile)
+            download_directory+"gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile)
         print("Downloading: gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile)
     except urllib.error.URLError as e:
         print("the most recent dataset is not available yet, going back one cycle")
@@ -443,11 +471,11 @@ else:
                 decimaltime+=24
                 cycle='18'
             else:
-                print("this is gonna be a problem for using the program on the first of a month at beginning of day UTC")
-                month='04'
-                d= '30'
-                decimaltime+=24
-                cycle='18'
+                month=int(month)
+                month-=1
+                month=str(month)
+                if len(month)==1:
+                    month="0"+month
 
         else:
             cycle=str(int(cycle)-6)
@@ -462,7 +490,7 @@ else:
 
         if os.path.isfile("gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile) == False:
             testfile = urllib.request.urlretrieve("https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs."+year+month+d+"%2F"+cycle+"%2Fatmos&file=gfs.t"+cycle+"z.pgrb2.0p25.f"+downloadfile+"&var_UGRD=on&var_VGRD=on&lev_20_m_above_ground=on", \
-                "/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile)
+                download_directory+"gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile)
         else:
             print("this file already existed")
 
@@ -473,11 +501,7 @@ else:
 plt.figure(figsize=(12,8))
 # Set the file name of the grib file
 
-#grib = 'gfs.t18z.sfluxgrbf000.grib2'
-#grib = 'feb14grib_big_waimea_storm'
-#grib = "/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_18_ymd_20240501.010"
-grib = "/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile
-#grib='/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_00_ymd_20240503.006'
+grib = download_directory+"gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile
 
 grbs = pygrib.open(grib)
 grbu = grbs.select()[0]
@@ -515,13 +539,13 @@ datav=np.flipud(datav)
 
 
 
-
+print("type of day",type(d))
 currentpositions=[start]
 historicalpositions=[]
 iteration=1
 historicalfrom=[]
-plotpath=True
 counter=0
+arrived=False
 while arrived==False:
     if iteration>1:
         if int(downloadfile) +dt< 384:
@@ -536,14 +560,13 @@ while arrived==False:
         if int(downloadfile)>120:
             while int(downloadfile)%3!=0:
                 downloadfile = str(int(downloadfile)+1)
-        if os.path.isfile("/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile) == True: print("gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile+" file was already local")
+        if os.path.isfile(download_directory+"gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile) == True: print("gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile+" file was already local")
         else:
           testfile = urllib.request.urlretrieve("https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs."+year+month+d+"%2F"+cycle+"%2Fatmos&file=gfs.t"+cycle+"z.pgrb2.0p25.f"+downloadfile+"&var_UGRD=on&var_VGRD=on&lev_20_m_above_ground=on", \
-               "/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile)
+               download_directory+"gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile)
           print("Downloading: gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile)
 
-        #grib='/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_00_ymd_20240503.006'
-        grib = "/Users/nilsmelbourne/Documents/isochronal/gribs/gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile
+        grib = download_directory+"gribcycle_"+cycle+"_ymd_"+year+month+d+"."+downloadfile
         grbs = pygrib.open(grib)
         grbu = grbs.select()[0]
         grbv = grbs.select()[1]
@@ -680,10 +703,6 @@ while arrived==False:
 
 
 
-for i in range(len(historicalpositions[-1])-1):
-    d=((historicalpositions[-1][i+1][0]-historicalpositions[-1][i][0])**2+(historicalpositions[-1][i+1][1]-historicalpositions[-1][i][1])**2)**0.5
-
-
 if plotpath==True:
     path=[stop,endposition]
     idx=endboundarypoint
@@ -691,7 +710,7 @@ if plotpath==True:
         it_idx=enditeration-2-i
         idx=historicalfrom[it_idx][idx]
         path.append(historicalpositions[it_idx][idx])
-    write_gpx(path)
+    write_gpx(path,"PATH_y.m.d;hour"+year+"."+month+"."+d+";"+namingdecimaltime+'.gpx')
     path=np.array(path)
     plt.plot(path[:,1],path[:,0],color='orangered', linewidth=2)
 
@@ -753,8 +772,11 @@ plt.scatter(stop[1],stop[0],color="red",s=100)
 # newdatau=np.array(newdatau)
 # newdatav=np.array(newdatav)
 
-#cs = m.pcolormesh(x,y,data,cmap=plt.cm.jet)#shading='flat'
 
+m = Basemap(projection='cyl', llcrnrlon=lonbounds[0], \
+    urcrnrlon=lonbounds[1],llcrnrlat=latbounds[0],urcrnrlat=latbounds[1], \
+    resolution=plotresolu)
+#cs = m.pcolormesh(x,y,data,cmap=plt.cm.jet)#shading='flat'
 #m.drawlsmask(land_color='coral',ocean_color='white',lakes=True)
 m.drawcoastlines()
 m.fillcontinents(color='olive')
@@ -770,6 +792,6 @@ m.drawmeridians(np.arange(-180.,180.,20.),labels=[0,0,0,1])
 #strm = plt.streamplot(newlons, newlats, newdatau, newdatav, color=np.sqrt(newdatau**2+newdatav**2),linewidth=2, cmap='autumn')
 
 plt.title('Travel Time: '+str(enditeration*dt/24)+" days \n "+str(dt)+" hour isochrone resolution") # Set the name of the variable to plot
-
+if saveplot== True:
+    plt.savefig("FIG_y.m.d;hour"+year+"."+month+"."+d+";"+namingdecimaltime+'.png', dpi=500)# Set the output file name
 plt.show()
-#plt.savefig('flatteryHNL.png') # Set the output file name
